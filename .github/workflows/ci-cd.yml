@@ -6,21 +6,57 @@ on:
       - main   # Trigger the workflow when you push to the 'main' branch
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
 
-    - name: Deploy to server
-      env:
-        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-      run: |
-        # Ensure that the private SSH key is available for uses
-        mkdir -p ~/.ssh
-        echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
-        chmod 600 ~/.ssh/id_rsa
+    - name: Start ssh-agent and add private key
+      uses: webfactory/ssh-agent@v0.5.4
+      with:
+        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-        # SSH into the server and execute the deploy script
-        ssh -o StrictHostKeyChecking=no  ubuntu@ec2-98-91-16-9.compute-1.amazonaws.com  'bash -s' < deploy_script.sh
+    - name: Copy files to server
+      run: |
+        ls -al ./index.html ./nginx.config || true
+        rsync -avz ./index.html ./nginx.config ubuntu@ec2-98-91-16-9.compute-1.amazonaws.com:/home/ubuntu/
+
+    - name: Deploy on server (overwrite sites-available and set default)
+      run: |
+        ssh -o StrictHostKeyChecking=no ubuntu@ec2-98-91-16-9.compute-1.amazonaws.com << 'EOF'
+          set -e
+
+          # Optional: ensure nginx is installed (uncomment if you want automatic install)
+          if ! command -v nginx >/dev/null 2>&1; then
+            echo "Nginx not found, installing..."
+            sudo apt-get update
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y nginx
+          fi
+
+          # BACKUP: save current sites-available to a timestamped tar in /tmp
+          ts=$(date +%Y%m%d%H%M%S)
+          sudo mkdir -p /tmp/nginx_backup_${ts}
+          sudo cp -r /etc/nginx/sites-available /tmp/nginx_backup_${ts}/ || true
+
+          # Remove existing site configs (destructive action)
+          sudo rm -f /etc/nginx/sites-available/* || true
+          sudo rm -f /etc/nginx/sites-enabled/* || true
+
+          # Copy the uploaded config as the default site
+          sudo cp /home/ubuntu/nginx.config /etc/nginx/sites-available/default
+
+          # Enable the default site with a symlink
+          sudo ln -sf /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
+
+          # Test nginx config and reload
+          sudo nginx -t
+          sudo systemctl reload nginx
+
+          # Deploy website files
+          sudo mkdir -p /var/www/html
+          sudo cp /home/ubuntu/index.html /var/www/html/index.html
+
+          echo "Deployment and Nginx configuration completed successfully!"
+        EOF
