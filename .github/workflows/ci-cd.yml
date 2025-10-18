@@ -17,10 +17,10 @@ jobs:
       env:
         SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
       run: |
-        # Ensure that the private SSH key is available for use
+        # Ensure that the private SSH key is available for uses
         mkdir -p ~/.ssh
         echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
 
         # SSH into the server and execute the deploy script
-        ssh -o StrictHostKeyChecking=no  ubuntu@ec2-98-91-16-9.compute-1.amazonaws.com 'bash -s' < deploy_script.sh
+        ssh -o StrictHostKeyChecking=no  ubuntu@ip-172-31-16-241  'bash -s' < deploy_script.sh
