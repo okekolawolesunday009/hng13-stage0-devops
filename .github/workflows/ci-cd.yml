@@ -23,4 +23,4 @@ jobs:
         chmod 600 ~/.ssh/id_rsa
 
         # SSH into the server and execute the deploy script
-        ssh -o StrictHostKeyChecking=no  ubuntu@ip-172.31.16.241  'bash -s' < deploy_script.sh
+        ssh -o StrictHostKeyChecking=no  ubuntu@172.31.16.241  'bash -s' < deploy_script.sh
